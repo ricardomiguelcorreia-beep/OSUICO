@@ -467,6 +467,7 @@ textarea.form-input{resize:none;min-height:80px;}
     </div>
     <div class="h-right">
       <div class="h-clock" id="clock-k"></div>
+      <button class="h-logout sound-toggle-btn" onclick="toggleSound()" style="border-color:var(--border);color:var(--text3);">🔕 Som OFF</button>
       <button class="h-logout" onclick="doTVLogin()" style="border-color:var(--green);color:var(--green);">📺 TV</button>
       <button class="h-logout" id="btn-switch-sala" style="display:none;border-color:var(--accent2);color:var(--accent2);" onclick="switchToSala()">🍽 Sala</button>
       <button class="h-logout" onclick="doLogout()">Sair</button>
@@ -510,6 +511,7 @@ textarea.form-input{resize:none;min-height:80px;}
       <div style="font-family:'Playfair Display',serif;font-size:22px;color:var(--accent2);">O Suiço — Pedidos</div>
     </div>
     <div style="display:flex;align-items:center;gap:14px;">
+      <button class="sound-toggle-btn" onclick="toggleSound()" style="background:none;border:1px solid #333;color:#555;padding:6px 14px;border-radius:20px;font-size:12px;cursor:pointer;">🔕 Som OFF</button>
       <div id="tv-clock" style="font-size:20px;color:#fff;font-weight:300;"></div>
       <div id="tv-conn" style="width:10px;height:10px;border-radius:50%;background:var(--text3);"></div>
       <button onclick="doLogout()" style="background:none;border:1px solid #333;color:#666;padding:6px 14px;border-radius:20px;font-size:12px;cursor:pointer;">Sair</button>
@@ -782,11 +784,43 @@ const MENU={
 let audioCtx=null;
 function getAudioCtx(){
   if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  // iOS requer resume após interação
+  if(audioCtx.state==='suspended') audioCtx.resume();
   return audioCtx;
+}
+
+// Ativar som — deve ser chamado após toque do utilizador
+function activateSound(){
+  try{
+    const ctx=getAudioCtx();
+    // toca silêncio para desbloquear
+    const osc=ctx.createOscillator();
+    const gain=ctx.createGain();
+    osc.connect(gain);gain.connect(ctx.destination);
+    gain.gain.value=0.001;
+    osc.start();osc.stop(ctx.currentTime+0.01);
+    soundActive=true;
+    updateSoundBtn();
+    toast('🔔 Som ativado');
+  }catch(e){console.log('audio err',e);}
+}
+
+let soundActive=false;
+function updateSoundBtn(){
+  const btns=document.querySelectorAll('.sound-toggle-btn');
+  btns.forEach(b=>{b.textContent=soundActive?'🔔 Som ON':'🔕 Som OFF';
+    b.style.borderColor=soundActive?'var(--green)':'var(--border)';
+    b.style.color=soundActive?'var(--green)':'var(--text3)';
+  });
+}
+function toggleSound(){
+  if(!soundActive){activateSound();}
+  else{soundActive=false;updateSoundBtn();toast('🔕 Som desativado');}
 }
 
 // Som de novo pedido — 2 bipes curtos agudos (para cozinha)
 function somNovoPedido(){
+  if(!soundActive)return;
   try{
     const ctx=getAudioCtx();
     [0,0.18].forEach(delay=>{
@@ -805,6 +839,7 @@ function somNovoPedido(){
 
 // Som de pedido concluído — 3 notas ascendentes suaves (para sala)
 function somPedidoConcluido(){
+  if(!soundActive)return;
   try{
     const ctx=getAudioCtx();
     [[0,523],[0.15,659],[0.30,784]].forEach(([delay,freq])=>{
